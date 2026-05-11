@@ -1,20 +1,19 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import os
 
-# Create Flask app
 app = Flask(__name__)
 
-# Home route
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def home():
+    if request.method == "POST":
+        inflow = request.form.get("inflow")
+        outflow = request.form.get("outflow")
+
+        print("Inflow:", inflow)
+        print("Outflow:", outflow)
+
     return render_template("index.html")
 
-# Optional route (for testing)
-@app.route("/test")
-def test():
-    return "App is working correctly!"
-
-# Main run block (IMPORTANT for Render)
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Render provides PORT
-    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
