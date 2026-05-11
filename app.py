@@ -13,23 +13,42 @@ def home():
 
         if file:
             try:
-                # Read Excel (skip top unwanted rows)
-                df = pd.read_excel(file, skiprows=3)
+                # Read Excel safely
+                df = pd.read_excel(file, engine="openpyxl")
 
-                # Rename required columns (based on your file structure)
-                df = df.rename(columns={
-                    df.columns[6]: "Inflow",
-                    df.columns[11]: "Outflow",
-                    df.columns[0]: "Date"
-                })
+                # Clean column names (remove spaces)
+                df.columns = df.columns.str.strip()
 
-                # Keep only required columns
-                df = df[["Date", "Inflow", "Outflow"]]
+                # Try to detect correct columns automatically
+                inflow_col = None
+                outflow_col = None
+                date_col = None
 
-                # Remove empty rows
-                df = df.dropna(subset=["Inflow", "Outflow"])
+                for col in df.columns:
+                    if "inflow" in col.lower():
+                        inflow_col = col
+                    elif "out" in col.lower():
+                        outflow_col = col
+                    elif "date" in col.lower():
+                        date_col = col
 
-                # Convert to numeric (safety)
+                # Check required columns
+                if not inflow_col or not outflow_col:
+                    result = "❌ Could not find Inflow/Outflow columns in Excel"
+                    return render_template("index.html", result=result)
+
+                # If no date column, create one
+                if not date_col:
+                    df["Date"] = pd.date_range(start="2020-01-01", periods=len(df))
+                    date_col = "Date"
+
+                # Select needed columns
+                df = df[[date_col, inflow_col, outflow_col]]
+
+                # Rename columns
+                df.columns = ["Date", "Inflow", "Outflow"]
+
+                # Convert to numeric
                 df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
                 df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
@@ -43,19 +62,19 @@ def home():
                 stress = df[df["Balance"] < 0]
                 excess = df[df["Balance"] > 0]
 
-                # Convert Date column
+                # Convert Date
                 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 
                 # Monthly summary
                 monthly = df.groupby(df["Date"].dt.to_period("M")).sum(numeric_only=True)
 
-                # Prepare result output
+                # Final result
                 result = f"""
-                ✅ Total Records: {len(df)} <br>
-                🔴 Stress Days: {len(stress)} <br>
-                🟢 Excess Days: {len(excess)} <br><br>
+                <b>Total Records:</b> {len(df)} <br>
+                <b>Stress Days:</b> {len(stress)} <br>
+                <b>Excess Days:</b> {len(excess)} <br><br>
 
-                📊 Monthly Analysis (first 5 rows): <br>
+                <b>Monthly Summary:</b><br>
                 {monthly.head().to_html()}
                 """
 
