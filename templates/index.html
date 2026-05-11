@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Water Usage Monitoring System</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f2f6ff;
+            text-align: center;
+        }
+
+        .container {
+            margin: 50px auto;
+            width: 60%;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px #ccc;
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        input[type="file"] {
+            margin: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #3498db;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .result {
+            margin-top: 20px;
+            text-align: left;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>💧 Water Usage Monitoring System</h1>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <br>
+        <button type="submit">Upload Excel</button>
+    </form>
+
+    {% if result %}
+    <div class="result">
+        <h2>📊 Analysis Report</h2>
+        <p>{{ result | safe }}</p>
+    </div>
+    {% endif %}
+
+</div>
+
+</body>
+</html>
