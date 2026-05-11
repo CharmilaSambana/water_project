@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Water Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body style="font-family: Arial; text-align:center; background:#f5f5f5;">
+
+    <h1>💧 Smart Water Management Dashboard</h1>
+
+    <div style="margin:20px;">
+        <button onclick="loadMonthly()">📈 Monthly</button>
+        <button onclick="loadWaste()">📊 Waste</button>
+        <button onclick="predict()">🔮 Predict</button>
+    </div>
+
+    <div id="summary" style="margin:20px; font-size:20px; font-weight:bold;"></div>
+
+    <div style="width:80%; margin:auto;">
+        <canvas id="myChart"></canvas>
+    </div>
+
+    <script>
+        let chart;
+
+        function loadMonthly() {
+            fetch('/monthly-report')
+            .then(res => res.json())
+            .then(data => {
+
+                const labels = data.map(d => "Month " + d.month);
+                const inflow = data.map(d => d.avg_inflow);
+                const outflow = data.map(d => d.avg_outflow);
+
+                let stressMonths = data.filter(d => d.stress === "YES").length;
+
+                document.getElementById("summary").innerHTML =
+                    "⚠️ Water Stress Months: " + stressMonths;
+
+                if(chart) chart.destroy();
+
+                const ctx = document.getElementById('myChart').getContext('2d');
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: 'Inflow', data: inflow },
+                            { label: 'Outflow', data: outflow }
+                        ]
+                    }
+                });
+            });
+        }
+
+        function loadWaste() {
+            fetch('/waste-report')
+            .then(res => res.json())
+            .then(data => {
+
+                const labels = data.map(d => "Month " + d.month);
+                const waste = data.map(d => d.waste);
+
+                let totalWaste = waste.reduce((a, b) => a + b, 0);
+
+                document.getElementById("summary").innerHTML =
+                    "💧 Total Waste: " + totalWaste;
+
+                if(chart) chart.destroy();
+
+                const ctx = document.getElementById('myChart').getContext('2d');
+
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: 'Waste', data: waste }
+                        ]
+                    }
+                });
+            });
+        }
+
+        function predict() {
+            fetch('/predict')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("summary").innerHTML =
+                    "🔮 Predicted Next Month Inflow: " + data.predicted_inflow.toFixed(2);
+            });
+        }
+    </script>
+
+</body>
+</html>
