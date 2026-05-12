@@ -13,41 +13,40 @@ def upload():
     try:
         file = request.files["file"]
 
-        # READ FULL EXCEL
-        df = pd.read_excel(file)
+        # READ RAW FILE (NO HEADER)
+        df = pd.read_excel(file, header=None)
+
+        # DROP EMPTY ROWS
+        df = df.dropna(how="all").reset_index(drop=True)
+
+        # 🔍 FIND HEADER ROW (WHERE "Date" EXISTS)
+        header_row = None
+        for i in range(len(df)):
+            row_text = " ".join(df.iloc[i].astype(str)).lower()
+            if "date" in row_text and "inflow" in row_text:
+                header_row = i
+                break
+
+        if header_row is None:
+            return "❌ Header row not found in Excel"
+
+        # SET HEADER
+        df.columns = df.iloc[header_row]
+        df = df.iloc[header_row + 1:].reset_index(drop=True)
 
         # CLEAN COLUMN NAMES
         df.columns = df.columns.astype(str).str.strip()
 
-        # 🔍 FIND REQUIRED COLUMNS AUTOMATICALLY
-        date_col = None
-        inflow_col = None
-        outflow_col = None
+        # 🔍 FIND REQUIRED COLUMNS
+        date_col = [c for c in df.columns if "date" in c.lower() or "day" in c.lower()][0]
+        inflow_col = [c for c in df.columns if "inflow" in c.lower()][0]
+        outflow_col = [c for c in df.columns if "out" in c.lower()][0]
 
-        for col in df.columns:
-            col_lower = col.lower()
+        # EXTRACT REQUIRED DATA
+        df = df[[date_col, inflow_col, outflow_col]]
+        df.columns = ["Date", "Inflow", "Outflow"]
 
-            if "date" in col_lower or "day" in col_lower:
-                date_col = col
-            elif "inflow" in col_lower:
-                inflow_col = col
-            elif "out" in col_lower:
-                outflow_col = col
-
-        if not date_col or not inflow_col or not outflow_col:
-            return f"❌ Could not detect required columns. Found columns: {list(df.columns)}"
-
-        # RENAME
-        df = df.rename(columns={
-            date_col: "Date",
-            inflow_col: "Inflow",
-            outflow_col: "Outflow"
-        })
-
-        # KEEP ONLY REQUIRED
-        df = df[["Date", "Inflow", "Outflow"]]
-
-        # CLEAN DATA
+        # CLEAN VALUES
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
         df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
@@ -55,9 +54,8 @@ def upload():
         # REMOVE INVALID ROWS
         df = df.dropna()
 
-        # 🚨 IMPORTANT CHECK
         if len(df) == 0:
-            return "❌ No valid numeric data found after cleaning. Check Excel format."
+            return "❌ Data extraction failed. No valid rows found."
 
         # ----------------------
         # DAILY ANALYSIS
