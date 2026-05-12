@@ -4,6 +4,9 @@ import pdfplumber
 
 app = Flask(__name__)
 
+# ----------------------
+# PROCESS DATA FUNCTION
+# ----------------------
 def process_dataframe(df):
 
     df = df.dropna(how="all").reset_index(drop=True)
@@ -25,6 +28,12 @@ def process_dataframe(df):
             temp.columns = ["Date", "Inflow", "Outflow"]
 
             temp["Date"] = pd.to_datetime(temp["Date"], errors="coerce")
+
+            # 🔥 FIX YEAR ISSUE
+            temp["Date"] = temp["Date"].apply(
+                lambda x: x.replace(year=2023) if pd.notnull(x) else x
+            )
+
             temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
             temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
 
@@ -47,6 +56,12 @@ def process_dataframe(df):
         temp.columns = ["Date", "Inflow", "Outflow"]
 
         temp["Date"] = pd.to_datetime(temp["Date"], errors="coerce")
+
+        # 🔥 FIX YEAR ISSUE
+        temp["Date"] = temp["Date"].apply(
+            lambda x: x.replace(year=2023) if pd.notnull(x) else x
+        )
+
         temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
         temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
 
@@ -61,6 +76,9 @@ def process_dataframe(df):
     return None
 
 
+# ----------------------
+# ROUTES
+# ----------------------
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -128,6 +146,9 @@ def upload():
         total_outflow = df["Outflow"].sum()
         balance = total_inflow - total_outflow
 
+        # ----------------------
+        # RESULT
+        # ----------------------
         result = f"""
         📊 TOTAL RECORDS: {len(df)} <br><br>
 
