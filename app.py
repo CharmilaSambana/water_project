@@ -27,59 +27,36 @@ def process_dataframe(df):
     df = df.dropna(how="all").reset_index(drop=True)
     all_data = []
 
-    # ----------------------
-    # TRY 1: VERTICAL FORMAT
-    # ----------------------
-    try:
-        df_copy = df.copy()
-        df_copy.columns = df_copy.columns.astype(str).str.strip()
+    # Convert all column names to string
+    df.columns = df.columns.astype(str)
 
-        date_col = [c for c in df_copy.columns if "date" in c.lower() or "day" in c.lower()]
-        inflow_col = [c for c in df_copy.columns if "inflow" in c.lower()]
-        outflow_col = [c for c in df_copy.columns if "out" in c.lower()]
-
-        if date_col and inflow_col and outflow_col:
-            temp = df_copy[[date_col[0], inflow_col[0], outflow_col[0]]]
-            temp.columns = ["Date", "Inflow", "Outflow"]
-
-            temp["Date"] = pd.to_datetime(temp["Date"], errors="coerce")
-
-            year_value = detect_year(df_copy)
-            temp["Date"] = temp["Date"].apply(
-                lambda x: x.replace(year=year_value) if pd.notnull(x) else x
-            )
-
-            temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
-            temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
-
-            temp = temp.dropna()
-
-            if len(temp) > 0:
-                return temp
-    except:
-        pass
-
-    # ----------------------
-    # TRY 2: HORIZONTAL FORMAT (SMART SCAN)
-    # ----------------------
     year_value = detect_year(df)
-    month_counter = 1
 
-    i = 0
-    while i < df.shape[1] - 2:
+    # 🔍 FIND ALL INFLOW & OUTFLOW COLUMNS
+    inflow_cols = [col for col in df.columns if "inflow" in col.lower()]
+    outflow_cols = [col for col in df.columns if "out" in col.lower()]
 
-        temp = df.iloc[:, i:i+3]
+    # Assume date columns are just before inflow columns
+    for i in range(len(inflow_cols)):
 
         try:
+            inflow_col = inflow_cols[i]
+            outflow_col = outflow_cols[i]
+
+            # Try to get corresponding date column
+            inflow_index = df.columns.get_loc(inflow_col)
+            date_col = df.columns[inflow_index - 1]
+
+            temp = df[[date_col, inflow_col, outflow_col]].copy()
             temp.columns = ["Date", "Inflow", "Outflow"]
 
-            # Convert day values
+            # Convert day
             temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
 
-            # Create full date
+            # Assign proper date
             temp["Date"] = pd.to_datetime({
                 "year": year_value,
-                "month": month_counter,
+                "month": i + 1,
                 "day": temp["Date"]
             }, errors="coerce")
 
@@ -88,31 +65,17 @@ def process_dataframe(df):
 
             temp = temp.dropna()
 
-            # Only accept valid month blocks
             if len(temp) > 10:
                 all_data.append(temp)
-                month_counter += 1
-                i += 3   # move to next block
-            else:
-                i += 1   # shift to detect next block
 
         except:
-            i += 1
+            continue
 
     if len(all_data) > 0:
         return pd.concat(all_data, ignore_index=True)
 
     return None
-
-
-# ----------------------
-# ROUTES
-# ----------------------
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-
+    
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
