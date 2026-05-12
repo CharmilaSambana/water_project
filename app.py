@@ -13,43 +13,46 @@ def upload():
     try:
         file = request.files["file"]
 
-        # READ EXCEL (skip top rows)
-        df = pd.read_excel(file, header=1)
+        # READ EXCEL WITHOUT HEADERS
+        df = pd.read_excel(file, header=None)
 
-        # CLEAN COLUMNS
-        df.columns = df.columns.str.strip()
+        # REMOVE COMPLETELY EMPTY ROWS
+        df = df.dropna(how="all")
 
-        # RENAME IMPORTANT COLUMNS
-        df = df.rename(columns={
-            "Date": "Date",
-            "Inflows (in Cusecs)": "Inflow",
-            "Total Out flows (in Cusecs)": "Outflow"
-        })
+        # RESET INDEX
+        df = df.reset_index(drop=True)
 
-        # KEEP ONLY REQUIRED COLUMNS
-        df = df[["Date", "Inflow", "Outflow"]]
+        # 🔍 FIND ROW WHERE ACTUAL DATA STARTS
+        start_row = None
+        for i in range(len(df)):
+            if str(df.iloc[i, 0]).lower().strip() in ["date", "day"]:
+                start_row = i + 1
+                break
 
-        # REMOVE EMPTY ROWS
-        df = df.dropna(subset=["Date"])
+        if start_row is None:
+            return "❌ Could not find Date column in Excel"
 
-        # CONVERT DATE
+        # TAKE DATA FROM START ROW
+        df = df.iloc[start_row:, :3]
+
+        # SET COLUMN NAMES MANUALLY
+        df.columns = ["Date", "Inflow", "Outflow"]
+
+        # CLEAN DATA
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        df = df.dropna(subset=["Date"])
-
-        # CONVERT NUMBERS
         df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
         df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
-        df = df.dropna(subset=["Inflow", "Outflow"])
+        df = df.dropna()
 
         # ----------------------
         # DAILY ANALYSIS
         # ----------------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
-        stress_days = df[df["Balance"] < 0]
-        excess_days = df[df["Balance"] >= 0]
-        moderate_days = df[(df["Balance"] >= -5) & (df["Balance"] <= 5)]
+        stress = len(df[df["Balance"] < 0])
+        excess = len(df[df["Balance"] >= 0])
+        moderate = len(df[(df["Balance"] >= -5) & (df["Balance"] <= 5)])
 
         # ----------------------
         # MONTHLY ANALYSIS
@@ -63,21 +66,15 @@ def upload():
 
         monthly["Balance"] = monthly["Inflow"] - monthly["Outflow"]
 
-        stress_months = monthly[monthly["Balance"] < 0]
-        excess_months = monthly[monthly["Balance"] >= 0]
+        stress_months = len(monthly[monthly["Balance"] < 0])
+        excess_months = len(monthly[monthly["Balance"] >= 0])
 
         # ----------------------
-        # WATER BALANCE
+        # TOTAL
         # ----------------------
         total_inflow = df["Inflow"].sum()
         total_outflow = df["Outflow"].sum()
-        total_balance = total_inflow - total_outflow
-
-        # ----------------------
-        # NRW
-        # ----------------------
-        monthly["NRW"] = monthly["Outflow"] - monthly["Inflow"]
-        high_nrw = monthly[monthly["NRW"] > 0]
+        balance = total_inflow - total_outflow
 
         # ----------------------
         # RESULT
@@ -87,19 +84,14 @@ def upload():
 
         Total Inflow: {total_inflow} <br>
         Total Outflow: {total_outflow} <br>
-        Balance: {total_balance} <br><br>
+        Balance: {balance} <br><br>
 
-        🌊 DAILY <br>
-        Stress Days: {len(stress_days)} <br>
-        Moderate Days: {len(moderate_days)} <br>
-        Excess Days: {len(excess_days)} <br><br>
+        🌊 Stress Days: {stress} <br>
+        ⚖ Moderate Days: {moderate} <br>
+        ✅ Excess Days: {excess} <br><br>
 
-        📅 MONTHLY <br>
-        Stress Months: {len(stress_months)} <br>
-        Excess Months: {len(excess_months)} <br><br>
-
-        🚰 NRW <br>
-        High NRW Months: {len(high_nrw)}
+        📅 Stress Months: {stress_months} <br>
+        📅 Excess Months: {excess_months}
         """
 
         return render_template("index.html", result=result)
