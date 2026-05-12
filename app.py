@@ -10,55 +10,96 @@ def home():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-
     try:
         file = request.files["file"]
-        df = pd.read_excel(file)
+
+        # READ EXCEL (skip top rows)
+        df = pd.read_excel(file, header=1)
 
         # CLEAN COLUMNS
         df.columns = df.columns.str.strip()
 
-        # SAFE CHECK (PREVENT CRASH)
-        if len(df.columns) < 3:
-            return "❌ Excel must have at least 3 columns (Date, Inflow, Outflow)"
-
-        # MANUAL SAFE MAPPING (NO GUESS CRASH)
+        # RENAME IMPORTANT COLUMNS
         df = df.rename(columns={
-            df.columns[0]: "Date",
-            df.columns[1]: "Inflow",
-            df.columns[2]: "Outflow"
+            "Date": "Date",
+            "Inflows (in Cusecs)": "Inflow",
+            "Total Out flows (in Cusecs)": "Outflow"
         })
 
-        # DATE FIX
+        # KEEP ONLY REQUIRED COLUMNS
+        df = df[["Date", "Inflow", "Outflow"]]
+
+        # REMOVE EMPTY ROWS
+        df = df.dropna(subset=["Date"])
+
+        # CONVERT DATE
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.dropna(subset=["Date"])
 
-        # ANALYSIS
+        # CONVERT NUMBERS
+        df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
+        df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
+
+        df = df.dropna()
+
+        # ----------------------
+        # DAILY ANALYSIS
+        # ----------------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
-        stress = len(df[df["Balance"] < 0])
-        excess = len(df[df["Balance"] >= 0])
-        moderate = len(df[(df["Balance"] >= -5) & (df["Balance"] <= 5)])
+        stress_days = df[df["Balance"] < 0]
+        excess_days = df[df["Balance"] >= 0]
+        moderate_days = df[(df["Balance"] >= -5) & (df["Balance"] <= 5)]
 
-        # MONTHLY
+        # ----------------------
+        # MONTHLY ANALYSIS
+        # ----------------------
         df["Month"] = df["Date"].dt.to_period("M").astype(str)
 
-        monthly = df.groupby("Month").sum(numeric_only=True).reset_index()
+        monthly = df.groupby("Month").agg({
+            "Inflow": "sum",
+            "Outflow": "sum"
+        }).reset_index()
 
+        monthly["Balance"] = monthly["Inflow"] - monthly["Outflow"]
+
+        stress_months = monthly[monthly["Balance"] < 0]
+        excess_months = monthly[monthly["Balance"] >= 0]
+
+        # ----------------------
+        # WATER BALANCE
+        # ----------------------
         total_inflow = df["Inflow"].sum()
         total_outflow = df["Outflow"].sum()
-        balance = total_inflow - total_outflow
+        total_balance = total_inflow - total_outflow
 
+        # ----------------------
+        # NRW
+        # ----------------------
+        monthly["NRW"] = monthly["Outflow"] - monthly["Inflow"]
+        high_nrw = monthly[monthly["NRW"] > 0]
+
+        # ----------------------
+        # RESULT
+        # ----------------------
         result = f"""
         📊 TOTAL RECORDS: {len(df)} <br><br>
 
         Total Inflow: {total_inflow} <br>
         Total Outflow: {total_outflow} <br>
-        Balance: {balance} <br><br>
+        Balance: {total_balance} <br><br>
 
-        🌊 Stress Days: {stress} <br>
-        ⚖ Moderate Days: {moderate} <br>
-        ✅ Excess Days: {excess}
+        🌊 DAILY <br>
+        Stress Days: {len(stress_days)} <br>
+        Moderate Days: {len(moderate_days)} <br>
+        Excess Days: {len(excess_days)} <br><br>
+
+        📅 MONTHLY <br>
+        Stress Months: {len(stress_months)} <br>
+        Excess Months: {len(excess_months)} <br><br>
+
+        🚰 NRW <br>
+        High NRW Months: {len(high_nrw)}
         """
 
         return render_template("index.html", result=result)
