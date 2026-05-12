@@ -13,37 +13,51 @@ def upload():
     try:
         file = request.files["file"]
 
-        # READ EXCEL WITHOUT HEADERS
-        df = pd.read_excel(file, header=None)
+        # READ FULL EXCEL
+        df = pd.read_excel(file)
 
-        # REMOVE COMPLETELY EMPTY ROWS
-        df = df.dropna(how="all")
+        # CLEAN COLUMN NAMES
+        df.columns = df.columns.astype(str).str.strip()
 
-        # RESET INDEX
-        df = df.reset_index(drop=True)
+        # 🔍 FIND REQUIRED COLUMNS AUTOMATICALLY
+        date_col = None
+        inflow_col = None
+        outflow_col = None
 
-        # 🔍 FIND ROW WHERE ACTUAL DATA STARTS
-        start_row = None
-        for i in range(len(df)):
-            if str(df.iloc[i, 0]).lower().strip() in ["date", "day"]:
-                start_row = i + 1
-                break
+        for col in df.columns:
+            col_lower = col.lower()
 
-        if start_row is None:
-            return "❌ Could not find Date column in Excel"
+            if "date" in col_lower or "day" in col_lower:
+                date_col = col
+            elif "inflow" in col_lower:
+                inflow_col = col
+            elif "out" in col_lower:
+                outflow_col = col
 
-        # TAKE DATA FROM START ROW
-        df = df.iloc[start_row:, :3]
+        if not date_col or not inflow_col or not outflow_col:
+            return f"❌ Could not detect required columns. Found columns: {list(df.columns)}"
 
-        # SET COLUMN NAMES MANUALLY
-        df.columns = ["Date", "Inflow", "Outflow"]
+        # RENAME
+        df = df.rename(columns={
+            date_col: "Date",
+            inflow_col: "Inflow",
+            outflow_col: "Outflow"
+        })
+
+        # KEEP ONLY REQUIRED
+        df = df[["Date", "Inflow", "Outflow"]]
 
         # CLEAN DATA
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
         df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
+        # REMOVE INVALID ROWS
         df = df.dropna()
+
+        # 🚨 IMPORTANT CHECK
+        if len(df) == 0:
+            return "❌ No valid numeric data found after cleaning. Check Excel format."
 
         # ----------------------
         # DAILY ANALYSIS
