@@ -40,7 +40,7 @@ def upload():
         df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
         df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
-        df = df.dropna()
+        df = df.dropna(subset=["Inflow", "Outflow"])
 
         # ----------------------
         # DAILY ANALYSIS
