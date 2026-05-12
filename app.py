@@ -44,7 +44,6 @@ def process_dataframe(df):
 
             temp["Date"] = pd.to_datetime(temp["Date"], errors="coerce")
 
-            # 🔥 Dynamic year fix
             year_value = detect_year(df_copy)
             temp["Date"] = temp["Date"].apply(
                 lambda x: x.replace(year=year_value) if pd.notnull(x) else x
@@ -61,38 +60,44 @@ def process_dataframe(df):
         pass
 
     # ----------------------
-    # TRY 2: HORIZONTAL FORMAT
+    # TRY 2: HORIZONTAL FORMAT (SMART SCAN)
     # ----------------------
     year_value = detect_year(df)
     month_counter = 1
 
-    for i in range(0, df.shape[1], 3):
+    i = 0
+    while i < df.shape[1] - 2:
+
         temp = df.iloc[:, i:i+3]
 
-        if temp.shape[1] < 3:
-            continue
+        try:
+            temp.columns = ["Date", "Inflow", "Outflow"]
 
-        temp.columns = ["Date", "Inflow", "Outflow"]
+            # Convert day values
+            temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
 
-        # Convert day values
-        temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
+            # Create full date
+            temp["Date"] = pd.to_datetime({
+                "year": year_value,
+                "month": month_counter,
+                "day": temp["Date"]
+            }, errors="coerce")
 
-        # 🔥 Build full date (year + month + day)
-        temp["Date"] = pd.to_datetime({
-            "year": year_value,
-            "month": month_counter,
-            "day": temp["Date"]
-        }, errors="coerce")
+            temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
+            temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
 
-        month_counter += 1
+            temp = temp.dropna()
 
-        temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
-        temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
+            # Only accept valid month blocks
+            if len(temp) > 10:
+                all_data.append(temp)
+                month_counter += 1
+                i += 3   # move to next block
+            else:
+                i += 1   # shift to detect next block
 
-        temp = temp.dropna()
-
-        if len(temp) > 0:
-            all_data.append(temp)
+        except:
+            i += 1
 
     if len(all_data) > 0:
         return pd.concat(all_data, ignore_index=True)
