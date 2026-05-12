@@ -5,6 +5,21 @@ import pdfplumber
 app = Flask(__name__)
 
 # ----------------------
+# DETECT YEAR FUNCTION
+# ----------------------
+def detect_year(df):
+    for col in df.columns:
+        try:
+            temp = pd.to_datetime(df[col], errors="coerce")
+            years = temp.dt.year.dropna()
+            if len(years) > 0:
+                return int(years.mode()[0])
+        except:
+            continue
+    return 2023  # fallback
+
+
+# ----------------------
 # PROCESS DATA FUNCTION
 # ----------------------
 def process_dataframe(df):
@@ -29,9 +44,10 @@ def process_dataframe(df):
 
             temp["Date"] = pd.to_datetime(temp["Date"], errors="coerce")
 
-            # 🔥 FIX YEAR ISSUE
+            # 🔥 Dynamic year fix
+            year_value = detect_year(df_copy)
             temp["Date"] = temp["Date"].apply(
-                lambda x: x.replace(year=2023) if pd.notnull(x) else x
+                lambda x: x.replace(year=year_value) if pd.notnull(x) else x
             )
 
             temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
@@ -47,6 +63,9 @@ def process_dataframe(df):
     # ----------------------
     # TRY 2: HORIZONTAL FORMAT
     # ----------------------
+    year_value = detect_year(df)
+    month_counter = 1
+
     for i in range(0, df.shape[1], 3):
         temp = df.iloc[:, i:i+3]
 
@@ -55,12 +74,17 @@ def process_dataframe(df):
 
         temp.columns = ["Date", "Inflow", "Outflow"]
 
-        temp["Date"] = pd.to_datetime(temp["Date"], errors="coerce")
+        # Convert day values
+        temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
 
-        # 🔥 FIX YEAR ISSUE
-        temp["Date"] = temp["Date"].apply(
-            lambda x: x.replace(year=2023) if pd.notnull(x) else x
-        )
+        # 🔥 Build full date (year + month + day)
+        temp["Date"] = pd.to_datetime({
+            "year": year_value,
+            "month": month_counter,
+            "day": temp["Date"]
+        }, errors="coerce")
+
+        month_counter += 1
 
         temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
         temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
