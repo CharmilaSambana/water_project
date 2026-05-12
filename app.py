@@ -13,34 +13,36 @@ def upload():
     try:
         file = request.files["file"]
 
-        # 🔥 READ EXCEL WITH CORRECT HEADER ROW
-        df = pd.read_excel(file, header=2)
+        # ✅ Read Excel (skip top 2 rows — THIS MATCHES YOUR FILE)
+        df = pd.read_excel(file, skiprows=2)
 
-        # CLEAN COLUMN NAMES
-        df.columns = df.columns.astype(str).str.strip()
+        # Clean column names
+        df.columns = df.columns.str.strip()
 
-        # RENAME BASED ON YOUR FILE
+        # Rename columns (based on your Excel)
         df = df.rename(columns={
-            df.columns[0]: "Date",
-            df.columns[1]: "Inflow",
-            df.columns[2]: "Outflow"
+            "Date / Day": "Date",
+            "Inflows (in Cusecs)": "Inflow",
+            "Total Out flows (in Cusecs)": "Outflow"
         })
 
-        # KEEP REQUIRED
+        # Keep only needed columns
         df = df[["Date", "Inflow", "Outflow"]]
 
-        # CLEAN DATA
+        # Convert types
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
         df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
-        df = df.dropna()
+        # Remove invalid rows
+        df = df.dropna(subset=["Date", "Inflow", "Outflow"])
 
-        if len(df) == 0:
-            return "❌ No valid data found after cleaning"
+        # If still empty → show debug info
+        if df.empty:
+            return f"❌ No data found. Columns detected: {list(df.columns)}"
 
         # ----------------------
-        # DAILY
+        # DAILY ANALYSIS
         # ----------------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
@@ -49,7 +51,7 @@ def upload():
         moderate = len(df[(df["Balance"] >= -5) & (df["Balance"] <= 5)])
 
         # ----------------------
-        # MONTHLY
+        # MONTHLY ANALYSIS
         # ----------------------
         df["Month"] = df["Date"].dt.to_period("M").astype(str)
 
