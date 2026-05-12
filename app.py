@@ -11,88 +11,101 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload():
 
-    file = request.files["file"]
-    df = pd.read_excel(file)
+    try:
+        file = request.files["file"]
+        df = pd.read_excel(file)
 
-    # 🟢 CLEAN COLUMN NAMES
-    df.columns = df.columns.str.strip()
+        # -----------------------------
+        # CLEAN COLUMN NAMES
+        # -----------------------------
+        df.columns = df.columns.str.strip()
 
-    # 🟢 AUTO MAP COLUMNS (based on your Excel)
-    df = df.rename(columns={
-        df.columns[0]: "Date",  # first column is Date
-        "Inflows (in Cusecs)": "Inflow",
-        "Total Out flows (in Cusecs)": "Outflow"
-    })
+        # -----------------------------
+        # SAFE COLUMN DETECTION
+        # -----------------------------
+        date_col = df.columns[0]
 
-    # 🟢 HANDLE DATE
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df = df.dropna(subset=["Date"])
+        inflow_col = [c for c in df.columns if "Inflow" in c or "Inflows" in c][0]
+        outflow_col = [c for c in df.columns if "Out" in c][0]
 
-    # ===============================
-    # 🟢 DAILY ANALYSIS
-    # ===============================
-    df["Balance"] = df["Inflow"] - df["Outflow"]
+        df = df.rename(columns={
+            date_col: "Date",
+            inflow_col: "Inflow",
+            outflow_col: "Outflow"
+        })
 
-    stress_days = df[df["Balance"] < 0]
-    excess_days = df[df["Balance"] >= 0]
+        # -----------------------------
+        # DATE HANDLING
+        # -----------------------------
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df = df.dropna(subset=["Date"])
 
-    moderate_days = df[(df["Balance"] >= -5) & (df["Balance"] <= 5)]
+        # -----------------------------
+        # DAILY ANALYSIS
+        # -----------------------------
+        df["Balance"] = df["Inflow"] - df["Outflow"]
 
-    # ===============================
-    # 🟢 MONTHLY ANALYSIS
-    # ===============================
-    df["Month"] = df["Date"].dt.to_period("M").astype(str)
+        stress_days = df[df["Balance"] < 0]
+        excess_days = df[df["Balance"] >= 0]
+        moderate_days = df[(df["Balance"] >= -5) & (df["Balance"] <= 5)]
 
-    monthly = df.groupby("Month").agg({
-        "Inflow": "sum",
-        "Outflow": "sum"
-    }).reset_index()
+        # -----------------------------
+        # MONTHLY ANALYSIS
+        # -----------------------------
+        df["Month"] = df["Date"].dt.to_period("M").astype(str)
 
-    monthly["Balance"] = monthly["Inflow"] - monthly["Outflow"]
+        monthly = df.groupby("Month").agg({
+            "Inflow": "sum",
+            "Outflow": "sum"
+        }).reset_index()
 
-    stress_months = monthly[monthly["Balance"] < 0]
-    excess_months = monthly[monthly["Balance"] >= 0]
+        monthly["Balance"] = monthly["Inflow"] - monthly["Outflow"]
 
-    # ===============================
-    # 🟢 WATER BALANCE ENGINE
-    # ===============================
-    total_inflow = df["Inflow"].sum()
-    total_outflow = df["Outflow"].sum()
-    total_balance = total_inflow - total_outflow
+        stress_months = monthly[monthly["Balance"] < 0]
+        excess_months = monthly[monthly["Balance"] >= 0]
 
-    # ===============================
-    # 🟢 NRW (NON-REVENUE WATER)
-    # ===============================
-    monthly["NRW"] = monthly["Outflow"] - monthly["Inflow"]
-    monthly["NRW %"] = (monthly["NRW"] / monthly["Inflow"]) * 100
+        # -----------------------------
+        # WATER BALANCE ENGINE
+        # -----------------------------
+        total_inflow = df["Inflow"].sum()
+        total_outflow = df["Outflow"].sum()
+        balance = total_inflow - total_outflow
 
-    high_nrw = monthly[monthly["NRW %"] > 20]
+        # -----------------------------
+        # NRW CALCULATION
+        # -----------------------------
+        monthly["NRW"] = monthly["Outflow"] - monthly["Inflow"]
 
-    # ===============================
-    # 🟢 FINAL REPORT
-    # ===============================
-    result = f"""
-    📊 TOTAL SUMMARY <br><br>
+        high_nrw = monthly[monthly["NRW"] > 0]
 
-    Total Records: {len(df)} <br>
-    Total Inflow: {total_inflow} <br>
-    Total Outflow: {total_outflow} <br>
-    Balance: {total_balance} <br><br>
+        # -----------------------------
+        # FINAL OUTPUT
+        # -----------------------------
+        result = f"""
+        📊 TOTAL SUMMARY <br><br>
 
-    🌊 DAILY ANALYSIS <br>
-    Stress Days: {len(stress_days)} <br>
-    Moderate Days: {len(moderate_days)} <br>
-    Excess Days: {len(excess_days)} <br><br>
+        Records: {len(df)} <br>
+        Total Inflow: {total_inflow} <br>
+        Total Outflow: {total_outflow} <br>
+        Balance: {balance} <br><br>
 
-    📅 MONTHLY ANALYSIS <br>
-    Stress Months: {len(stress_months)} <br>
-    Excess Months: {len(excess_months)} <br><br>
+        🌊 DAILY <br>
+        Stress Days: {len(stress_days)} <br>
+        Moderate Days: {len(moderate_days)} <br>
+        Excess Days: {len(excess_days)} <br><br>
 
-    🚰 NRW ANALYSIS <br>
-    High NRW Months: {len(high_nrw)} <br>
-    """
+        📅 MONTHLY <br>
+        Stress Months: {len(stress_months)} <br>
+        Excess Months: {len(excess_months)} <br><br>
 
-    return render_template("index.html", result=result)
+        🚰 NRW <br>
+        High NRW Months: {len(high_nrw)}
+        """
+
+        return render_template("index.html", result=result)
+
+    except Exception as e:
+        return f"❌ SERVER ERROR: {str(e)}"
 
 
 if __name__ == "__main__":
