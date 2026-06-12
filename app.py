@@ -74,20 +74,21 @@ def upload():
         excess_months = ["2017-01"] if excess > 0 else []
 
         return render_template("index.html",
-                               total_records=len(df),
-                               total_inflow=total_inflow,
-                               total_outflow=total_outflow,
-                               balance=balance,
-                               stress_days=stress,
-                               moderate_days=moderate,
-                               excess_days=excess,
-                               stress_months=stress_months,
-                               moderate_months=moderate_months,
-                               excess_months=excess_months)
+                total_records=len(df) if df is not None else 0,
+                total_inflow=total_inflow if 'total_inflow' in locals() else 0,
+                total_outflow=total_outflow if 'total_outflow' in locals() else 0,
+                balance=balance if 'balance' in locals() else 0,
+                stress_days=stress if 'stress' in locals() else 0,
+                moderate_days=moderate if 'moderate' in locals() else 0,
+                excess_days=excess if 'excess' in locals() else 0,
+                stress_months=stress_months if 'stress_months' in locals() else [],
+                moderate_months=moderate_months if 'moderate_months' in locals() else [],
+                excess_months=excess_months if 'excess_months' in locals() else []
+         )
 
     except Exception as e:
         return render_template("index.html", error=str(e))
-
+    print("UPLOAD HIT")
 
 # ----------------------
 # RUN
