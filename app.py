@@ -16,32 +16,43 @@ def home():
 # ----------------------
 def process_dataframe(df):
 
-    # Skip top rows
-    df = df.iloc[3:].reset_index(drop=True)
+    # Convert entire sheet to values
+    df = df.fillna("")
 
-    # 🔥 TAKE FIRST 3 NON-EMPTY COLUMNS
-    df = df.dropna(axis=1, how='all')
+    rows = df.values.tolist()
 
-    # Now pick first 3 columns
-    df = df.iloc[:, 0:3]
+    clean_data = []
 
-    df.columns = ["Date", "Inflow", "Outflow"]
+    for row in rows:
+        try:
+            # Try to find numeric pattern (Date, Inflow, Outflow)
+            nums = [x for x in row if str(x).replace('.', '', 1).isdigit()]
 
-    # Clean data
-    df["Date"] = pd.to_numeric(df["Date"], errors="coerce")
-    df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
-    df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
+            if len(nums) >= 3:
+                date = int(float(nums[0]))
+                inflow = float(nums[1])
+                outflow = float(nums[2])
 
-    df = df.dropna()
+                if 1 <= date <= 31:
+                    clean_data.append([date, inflow, outflow])
 
-    # Assign date (fixed month)
-    df["Date"] = pd.to_datetime({
+        except:
+            continue
+
+    # Convert to DataFrame
+    if len(clean_data) == 0:
+        return None
+
+    df_clean = pd.DataFrame(clean_data, columns=["Date", "Inflow", "Outflow"])
+
+    # Assign proper date
+    df_clean["Date"] = pd.to_datetime({
         "year": 2017,
         "month": 1,
-        "day": df["Date"]
+        "day": df_clean["Date"]
     })
 
-    return df
+    return df_clean
 
 
 # ----------------------
