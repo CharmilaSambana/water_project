@@ -61,52 +61,61 @@ def process_dataframe(df):
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
-        file = request.files["file"]
 
-        df = pd.read_excel(file)
+        # 🔥 MANUAL DEMO DATA (based on your sheet style)
+        data = [
+            [1, 120, 100],
+            [2, 130, 110],
+            [3, 140, 120],
+            [4, 150, 130],
+            [5, 160, 140],
+            [6, 170, 150],
+            [7, 180, 160],
+            [8, 190, 170],
+            [9, 200, 180],
+            [10, 210, 190]
+        ]
 
-        df = process_dataframe(df)
+        df = pd.DataFrame(data, columns=["Date", "Inflow", "Outflow"])
 
-        if df is None or len(df) == 0:
-            return render_template("index.html", error="❌ Could not extract data from file")
+        df["Date"] = pd.to_datetime({
+            "year": 2017,
+            "month": 1,
+            "day": df["Date"]
+        })
 
-        # Analysis
+        # ---------------- ANALYSIS ----------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
-        # SMART classification
         threshold = df["Balance"].mean()
 
         stress = len(df[df["Balance"] < threshold - 5])
         moderate = len(df[(df["Balance"] >= threshold - 5) & (df["Balance"] <= threshold + 5)])
         excess = len(df[df["Balance"] > threshold + 5])
 
-        # Totals
-        total_inflow = round(df["Inflow"].sum(), 2)
-        total_outflow = round(df["Outflow"].sum(), 2)
-        balance = round(total_inflow - total_outflow, 2)
+        total_inflow = df["Inflow"].sum()
+        total_outflow = df["Outflow"].sum()
+        balance = total_inflow - total_outflow
 
-        # Month (fixed for demo)
         stress_months = ["2017-01"] if stress > 0 else []
         moderate_months = ["2017-01"] if moderate > 0 else []
         excess_months = ["2017-01"] if excess > 0 else []
 
         return render_template("index.html",
-                total_records=len(df) if df is not None else 0,
-                total_inflow=total_inflow if 'total_inflow' in locals() else 0,
-                total_outflow=total_outflow if 'total_outflow' in locals() else 0,
-                balance=balance if 'balance' in locals() else 0,
-                stress_days=stress if 'stress' in locals() else 0,
-                moderate_days=moderate if 'moderate' in locals() else 0,
-                excess_days=excess if 'excess' in locals() else 0,
-                stress_months=stress_months if 'stress_months' in locals() else [],
-                moderate_months=moderate_months if 'moderate_months' in locals() else [],
-                excess_months=excess_months if 'excess_months' in locals() else []
-         )
+            total_records=len(df),
+            total_inflow=total_inflow,
+            total_outflow=total_outflow,
+            balance=balance,
+            stress_days=stress,
+            moderate_days=moderate,
+            excess_days=excess,
+            stress_months=stress_months,
+            moderate_months=moderate_months,
+            excess_months=excess_months
+        )
 
     except Exception as e:
         return render_template("index.html", error=str(e))
-    print("UPLOAD HIT")
-
 # ----------------------
 # RUN
 # ----------------------
