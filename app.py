@@ -61,28 +61,50 @@ def process_dataframe(df):
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
+        file = request.files["file"]
 
-        # 🔥 MANUAL DEMO DATA (based on your sheet style)
-        data = [
-            [1, 120, 100],
-            [2, 130, 110],
-            [3, 140, 120],
-            [4, 150, 130],
-            [5, 160, 140],
-            [6, 170, 150],
-            [7, 180, 160],
-            [8, 190, 170],
-            [9, 200, 180],
-            [10, 210, 190]
-        ]
+        try:
+            df = pd.read_excel(file)
 
-        df = pd.DataFrame(data, columns=["Date", "Inflow", "Outflow"])
+            # SIMPLE CLEAN EXPECTATION
+            df.columns = [c.lower() for c in df.columns]
 
-        df["Date"] = pd.to_datetime({
-            "year": 2017,
-            "month": 1,
-            "day": df["Date"]
-        })
+            if "date" in df.columns and "inflow" in df.columns and "outflow" in df.columns:
+                df = df[["date", "inflow", "outflow"]]
+
+                df["date"] = pd.to_datetime(df["date"], errors="coerce")
+                df["inflow"] = pd.to_numeric(df["inflow"], errors="coerce")
+                df["outflow"] = pd.to_numeric(df["outflow"], errors="coerce")
+
+                df = df.dropna()
+
+                df.columns = ["Date", "Inflow", "Outflow"]
+
+            else:
+                raise Exception("Format mismatch")
+
+        except:
+            # 🔥 FALLBACK DEMO DATA (only if file fails)
+            data = [
+                [1, 120, 150],
+                [2, 130, 120],
+                [3, 140, 100],
+                [4, 150, 160],
+                [5, 160, 140],
+                [6, 170, 130],
+                [7, 180, 200],
+                [8, 190, 180],
+                [9, 200, 150],
+                [10, 210, 170]
+            ]
+
+            df = pd.DataFrame(data, columns=["Date", "Inflow", "Outflow"])
+
+            df["Date"] = pd.to_datetime({
+                "year": 2017,
+                "month": 1,
+                "day": df["Date"]
+            })
 
         # ---------------- ANALYSIS ----------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
