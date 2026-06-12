@@ -67,6 +67,9 @@ def upload():
 
         df = process_dataframe(df)
 
+        if df is None or len(df) == 0:
+            return render_template("index.html", error="❌ Could not extract data from file")
+
         # Analysis
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
