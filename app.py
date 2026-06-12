@@ -5,7 +5,15 @@ import pdfplumber
 app = Flask(__name__)
 
 # ----------------------
-# DETECT YEAR FUNCTION
+# HOME ROUTE (IMPORTANT)
+# ----------------------
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
+# ----------------------
+# DETECT YEAR
 # ----------------------
 def detect_year(df):
     for col in df.columns:
@@ -16,44 +24,37 @@ def detect_year(df):
                 return int(years.mode()[0])
         except:
             continue
-    return 2023  # fallback
+    return 2023
 
 
 # ----------------------
-# PROCESS DATA FUNCTION
+# PROCESS DATA
 # ----------------------
 def process_dataframe(df):
 
     df = df.dropna(how="all").reset_index(drop=True)
-    all_data = []
-
-    # Convert all column names to string
     df.columns = df.columns.astype(str)
 
+    all_data = []
     year_value = detect_year(df)
 
-    # 🔍 FIND ALL INFLOW & OUTFLOW COLUMNS
     inflow_cols = [col for col in df.columns if "inflow" in col.lower()]
     outflow_cols = [col for col in df.columns if "out" in col.lower()]
 
-    # Assume date columns are just before inflow columns
     for i in range(len(inflow_cols)):
-
         try:
             inflow_col = inflow_cols[i]
             outflow_col = outflow_cols[i]
 
-            # Try to get corresponding date column
             inflow_index = df.columns.get_loc(inflow_col)
             date_col = df.columns[inflow_index - 1]
 
             temp = df[[date_col, inflow_col, outflow_col]].copy()
             temp.columns = ["Date", "Inflow", "Outflow"]
 
-            # Convert day
+            # FIX DATE (IMPORTANT)
             temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
 
-            # Assign proper date
             temp["Date"] = pd.to_datetime({
                 "year": year_value,
                 "month": i + 1,
@@ -65,7 +66,7 @@ def process_dataframe(df):
 
             temp = temp.dropna()
 
-            if len(temp) > 10:
+            if len(temp) > 5:
                 all_data.append(temp)
 
         except:
@@ -75,16 +76,18 @@ def process_dataframe(df):
         return pd.concat(all_data, ignore_index=True)
 
     return None
-    
+
+
+# ----------------------
+# UPLOAD ROUTE
+# ----------------------
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
         file = request.files["file"]
         filename = file.filename.lower()
 
-        # ----------------------
         # READ FILE
-        # ----------------------
         if filename.endswith(".xlsx") or filename.endswith(".xls"):
             df = pd.read_excel(file)
 
@@ -99,28 +102,23 @@ def upload():
                     if table:
                         for row in table:
                             data.append(row)
-
             df = pd.DataFrame(data)
 
         else:
-            return "❌ Unsupported file format"
+            return render_template("index.html", error="❌ Unsupported file")
 
-        # ----------------------
-        # PROCESS DATA
-        # ----------------------
+        # PROCESS
         df = process_dataframe(df)
 
         if df is None or len(df) == 0:
-            return "❌ Could not extract valid data from file"
+            return render_template("index.html", error="❌ No valid data")
 
-        # ----------------------
         # ANALYSIS
-        # ----------------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
         stress = len(df[df["Balance"] < 0])
-        excess = len(df[df["Balance"] >= 0])
         moderate = len(df[(df["Balance"] >= -5) & (df["Balance"] <= 5)])
+        excess = len(df[df["Balance"] > 5])
 
         df["Month"] = df["Date"].dt.to_period("M").astype(str)
 
@@ -132,35 +130,34 @@ def upload():
         monthly["Balance"] = monthly["Inflow"] - monthly["Outflow"]
 
         stress_months = monthly[monthly["Balance"] < 0]["Month"].tolist()
-        excess_months = monthly[monthly["Balance"] >= 0]["Month"].tolist()
+        moderate_months = monthly[(monthly["Balance"] >= -5) & (monthly["Balance"] <= 5)]["Month"].tolist()
+        excess_months = monthly[monthly["Balance"] > 5]["Month"].tolist()
 
-        total_inflow = df["Inflow"].sum()
-        total_outflow = df["Outflow"].sum()
-        balance = total_inflow - total_outflow
+        # TOTALS
+        total_inflow = round(df["Inflow"].sum(), 2)
+        total_outflow = round(df["Outflow"].sum(), 2)
+        balance = round(total_inflow - total_outflow, 2)
 
-        # ----------------------
-        # RESULT
-        # ----------------------
-        result = f"""
-        📊 TOTAL RECORDS: {len(df)} <br><br>
-
-        Total Inflow: {total_inflow} <br>
-        Total Outflow: {total_outflow} <br>
-        Balance: {balance} <br><br>
-
-        🌊 Stress Days: {stress} <br>
-        ⚖ Moderate Days: {moderate} <br>
-        ✅ Excess Days: {excess} <br><br>
-
-        📅 Stress Months: {len(stress_months)} → {stress_months} <br>
-        📅 Excess Months: {len(excess_months)} → {excess_months}
-        """
-
-        return render_template("index.html", result=result)
+        # SEND CLEAN DATA (NO STRING FORMAT)
+        return render_template("index.html",
+                               total_records=len(df),
+                               total_inflow=total_inflow,
+                               total_outflow=total_outflow,
+                               balance=balance,
+                               stress_days=stress,
+                               moderate_days=moderate,
+                               excess_days=excess,
+                               stress_months=stress_months,
+                               moderate_months=moderate_months,
+                               excess_months=excess_months
+                               )
 
     except Exception as e:
-        return f"❌ ERROR: {str(e)}"
+        return render_template("index.html", error=str(e))
 
 
+# ----------------------
+# RUN
+# ----------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000)
