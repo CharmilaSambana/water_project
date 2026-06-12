@@ -1,11 +1,10 @@
 from flask import Flask, render_template, request
 import pandas as pd
-import pdfplumber
 
 app = Flask(__name__)
 
 # ----------------------
-# HOME ROUTE (IMPORTANT)
+# HOME
 # ----------------------
 @app.route("/")
 def home():
@@ -13,132 +12,67 @@ def home():
 
 
 # ----------------------
-# DETECT YEAR
-# ----------------------
-def detect_year(df):
-    for col in df.columns:
-        try:
-            temp = pd.to_datetime(df[col], errors="coerce")
-            years = temp.dt.year.dropna()
-            if len(years) > 0:
-                return int(years.mode()[0])
-        except:
-            continue
-    return 2023
-
-
-# ----------------------
-# PROCESS DATA
+# PROCESS DATA (SIMPLE + WORKING)
 # ----------------------
 def process_dataframe(df):
 
+    # Skip top junk rows
     df = df.iloc[3:].reset_index(drop=True)
-    df.columns = df.columns.astype(str)
 
-    all_data = []
+    # Take only first month (stable demo)
+    df = df.iloc[:, [0, 3, 5]]
 
-    year = 2017  # you can update later
+    df.columns = ["Date", "Inflow", "Outflow"]
 
-    for i in range(len(df.columns)-2):
-        try:
-            date_col = df.columns[i]
-            inflow_col = df.columns[i+1]
-            outflow_col = df.columns[i+2]
+    # Clean
+    df["Date"] = pd.to_numeric(df["Date"], errors="coerce")
+    df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
+    df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
-            temp = df[[date_col, inflow_col, outflow_col]].copy()
-            temp.columns = ["Date", "Inflow", "Outflow"]
+    df = df.dropna()
 
-            # Convert
-            temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
-            temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
-            temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
+    # Assign date
+    df["Date"] = pd.to_datetime({
+        "year": 2017,
+        "month": 1,
+        "day": df["Date"]
+    })
 
-            temp = temp.dropna()
+    return df
 
-            # FILTER VALID DATA
-            if len(temp) > 20 and temp["Date"].max() <= 31:
 
-                temp["Date"] = pd.to_datetime({
-                    "year": year,
-                    "month": 1,   # temporary, fix later
-                    "day": temp["Date"]
-                }, errors="coerce")
-
-                all_data.append(temp)
-
-        except:
-            continue
-
-    if len(all_data) > 0:
-        final_df = pd.concat(all_data, ignore_index=True)
-
-        # REMOVE DUPLICATES
-        final_df = final_df.drop_duplicates()
-
-        return final_df
-
-    return None
 # ----------------------
-# UPLOAD ROUTE
+# UPLOAD
 # ----------------------
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
         file = request.files["file"]
-        filename = file.filename.lower()
 
-        # READ FILE
-        if filename.endswith(".xlsx") or filename.endswith(".xls"):
-            df = pd.read_excel(file)
+        df = pd.read_excel(file)
 
-        elif filename.endswith(".csv"):
-            df = pd.read_csv(file)
-
-        elif filename.endswith(".pdf"):
-            data = []
-            with pdfplumber.open(file) as pdf:
-                for page in pdf.pages:
-                    table = page.extract_table()
-                    if table:
-                        for row in table:
-                            data.append(row)
-            df = pd.DataFrame(data)
-
-        else:
-            return render_template("index.html", error="❌ Unsupported file")
-
-        # PROCESS
         df = process_dataframe(df)
 
-        if df is None or len(df) == 0:
-            return render_template("index.html", error="❌ No valid data")
-
-        # ANALYSIS
+        # Analysis
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
-        stress = len(df[df["Balance"] < 0])
-        moderate = len(df[(df["Balance"] >= -5) & (df["Balance"] <= 5)])
-        excess = len(df[df["Balance"] > 5])
+        # SMART classification
+        threshold = df["Balance"].mean()
 
-        df["Month"] = df["Date"].dt.to_period("M").astype(str)
+        stress = len(df[df["Balance"] < threshold - 5])
+        moderate = len(df[(df["Balance"] >= threshold - 5) & (df["Balance"] <= threshold + 5)])
+        excess = len(df[df["Balance"] > threshold + 5])
 
-        monthly = df.groupby("Month").agg({
-            "Inflow": "sum",
-            "Outflow": "sum"
-        }).reset_index()
-
-        monthly["Balance"] = monthly["Inflow"] - monthly["Outflow"]
-
-        stress_months = monthly[monthly["Balance"] < 0]["Month"].tolist()
-        moderate_months = monthly[(monthly["Balance"] >= -5) & (monthly["Balance"] <= 5)]["Month"].tolist()
-        excess_months = monthly[monthly["Balance"] > 5]["Month"].tolist()
-
-        # TOTALS
+        # Totals
         total_inflow = round(df["Inflow"].sum(), 2)
         total_outflow = round(df["Outflow"].sum(), 2)
         balance = round(total_inflow - total_outflow, 2)
 
-        # SEND CLEAN DATA (NO STRING FORMAT)
+        # Month (fixed for demo)
+        stress_months = ["2017-01"] if stress > 0 else []
+        moderate_months = ["2017-01"] if moderate > 0 else []
+        excess_months = ["2017-01"] if excess > 0 else []
+
         return render_template("index.html",
                                total_records=len(df),
                                total_inflow=total_inflow,
@@ -149,8 +83,7 @@ def upload():
                                excess_days=excess,
                                stress_months=stress_months,
                                moderate_months=moderate_months,
-                               excess_months=excess_months
-                               )
+                               excess_months=excess_months)
 
     except Exception as e:
         return render_template("index.html", error=str(e))
@@ -160,4 +93,4 @@ def upload():
 # RUN
 # ----------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
