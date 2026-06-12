@@ -16,22 +16,25 @@ def home():
 # ----------------------
 def process_dataframe(df):
 
-    # Skip top junk rows
+    # Skip top rows
     df = df.iloc[3:].reset_index(drop=True)
 
-    # Take only first month (stable demo)
-    df = df.iloc[:, [0, 3, 5]]
+    # 🔥 TAKE FIRST 3 NON-EMPTY COLUMNS
+    df = df.dropna(axis=1, how='all')
+
+    # Now pick first 3 columns
+    df = df.iloc[:, 0:3]
 
     df.columns = ["Date", "Inflow", "Outflow"]
 
-    # Clean
+    # Clean data
     df["Date"] = pd.to_numeric(df["Date"], errors="coerce")
     df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
     df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
     df = df.dropna()
 
-    # Assign date
+    # Assign date (fixed month)
     df["Date"] = pd.to_datetime({
         "year": 2017,
         "month": 1,
