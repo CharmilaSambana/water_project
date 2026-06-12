@@ -87,11 +87,9 @@ def upload():
         # ---------------- ANALYSIS ----------------
         df["Balance"] = df["Inflow"] - df["Outflow"]
 
-        threshold = df["Balance"].mean()
-
-        stress = len(df[df["Balance"] < threshold - 5])
-        moderate = len(df[(df["Balance"] >= threshold - 5) & (df["Balance"] <= threshold + 5)])
-        excess = len(df[df["Balance"] > threshold + 5])
+        stress = len(df[df["Balance"] < 0])
+        moderate = len(df[(df["Balance"] >= 0) & (df["Balance"] <= 15)])
+        excess = len(df[df["Balance"] > 15])
 
         total_inflow = df["Inflow"].sum()
         total_outflow = df["Outflow"].sum()
