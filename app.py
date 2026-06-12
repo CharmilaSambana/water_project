@@ -30,28 +30,56 @@ def detect_year(df):
 # ----------------------
 # PROCESS DATA
 # ----------------------
+
 def process_dataframe(df):
 
-    # 🔥 SKIP TOP GARBAGE ROWS
     df = df.iloc[3:].reset_index(drop=True)
+    df.columns = df.columns.astype(str)
 
-    # 🔥 RENAME COLUMNS MANUALLY (BASED ON YOUR FILE)
-    df.columns = [
-        "Date", "c1", "c2", "Inflow", "c4", "Outflow",
-        "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13"
-    ]
+    all_data = []
+    year = 2017  # change per file if needed
 
-    # 🔥 SELECT ONLY REQUIRED
-    df = df[["Date", "Inflow", "Outflow"]]
+    # 🔥 LOOP ALL MONTH BLOCKS
+    col_index = 0
+    month = 1
 
-    # 🔥 CLEAN DATA
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
-    df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
+    while col_index + 5 < len(df.columns):
 
-    df = df.dropna()
+        try:
+            date_col = df.columns[col_index]
+            inflow_col = df.columns[col_index + 3]
+            outflow_col = df.columns[col_index + 5]
 
-    return df
+            temp = df[[date_col, inflow_col, outflow_col]].copy()
+            temp.columns = ["Date", "Inflow", "Outflow"]
+
+            # CLEAN
+            temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
+
+            temp["Date"] = pd.to_datetime({
+                "year": year,
+                "month": month,
+                "day": temp["Date"]
+            }, errors="coerce")
+
+            temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
+            temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
+
+            temp = temp.dropna()
+
+            if len(temp) > 5:
+                all_data.append(temp)
+
+        except:
+            pass
+
+        col_index += 6   # move to next month block
+        month += 1
+
+    if len(all_data) > 0:
+        return pd.concat(all_data, ignore_index=True)
+
+    return None
 
 # ----------------------
 # UPLOAD ROUTE
