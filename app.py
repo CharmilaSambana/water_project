@@ -30,57 +30,54 @@ def detect_year(df):
 # ----------------------
 # PROCESS DATA
 # ----------------------
-
 def process_dataframe(df):
 
     df = df.iloc[3:].reset_index(drop=True)
     df.columns = df.columns.astype(str)
 
     all_data = []
-    year = 2017  # change per file if needed
 
-    # 🔥 LOOP ALL MONTH BLOCKS
-    col_index = 0
-    month = 1
+    year = 2017  # you can update later
 
-    while col_index + 5 < len(df.columns):
-
+    for i in range(len(df.columns)-2):
         try:
-            date_col = df.columns[col_index]
-            inflow_col = df.columns[col_index + 3]
-            outflow_col = df.columns[col_index + 5]
+            date_col = df.columns[i]
+            inflow_col = df.columns[i+1]
+            outflow_col = df.columns[i+2]
 
             temp = df[[date_col, inflow_col, outflow_col]].copy()
             temp.columns = ["Date", "Inflow", "Outflow"]
 
-            # CLEAN
+            # Convert
             temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
-
-            temp["Date"] = pd.to_datetime({
-                "year": year,
-                "month": month,
-                "day": temp["Date"]
-            }, errors="coerce")
-
             temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
             temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
 
             temp = temp.dropna()
 
-            if len(temp) > 5:
+            # FILTER VALID DATA
+            if len(temp) > 20 and temp["Date"].max() <= 31:
+
+                temp["Date"] = pd.to_datetime({
+                    "year": year,
+                    "month": 1,   # temporary, fix later
+                    "day": temp["Date"]
+                }, errors="coerce")
+
                 all_data.append(temp)
 
         except:
-            pass
-
-        col_index += 6   # move to next month block
-        month += 1
+            continue
 
     if len(all_data) > 0:
-        return pd.concat(all_data, ignore_index=True)
+        final_df = pd.concat(all_data, ignore_index=True)
+
+        # REMOVE DUPLICATES
+        final_df = final_df.drop_duplicates()
+
+        return final_df
 
     return None
-
 # ----------------------
 # UPLOAD ROUTE
 # ----------------------
