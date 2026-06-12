@@ -32,51 +32,26 @@ def detect_year(df):
 # ----------------------
 def process_dataframe(df):
 
-    df = df.dropna(how="all").reset_index(drop=True)
-    df.columns = df.columns.astype(str)
+    # 🔥 SKIP TOP GARBAGE ROWS
+    df = df.iloc[3:].reset_index(drop=True)
 
-    all_data = []
-    year_value = detect_year(df)
+    # 🔥 RENAME COLUMNS MANUALLY (BASED ON YOUR FILE)
+    df.columns = [
+        "Date", "c1", "c2", "Inflow", "c4", "Outflow",
+        "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13"
+    ]
 
-    inflow_cols = [col for col in df.columns if "inflow" in col.lower()]
-    outflow_cols = [col for col in df.columns if "out" in col.lower()]
+    # 🔥 SELECT ONLY REQUIRED
+    df = df[["Date", "Inflow", "Outflow"]]
 
-    for i in range(len(inflow_cols)):
-        try:
-            inflow_col = inflow_cols[i]
-            outflow_col = outflow_cols[i]
+    # 🔥 CLEAN DATA
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df["Inflow"] = pd.to_numeric(df["Inflow"], errors="coerce")
+    df["Outflow"] = pd.to_numeric(df["Outflow"], errors="coerce")
 
-            inflow_index = df.columns.get_loc(inflow_col)
-            date_col = df.columns[inflow_index - 1]
+    df = df.dropna()
 
-            temp = df[[date_col, inflow_col, outflow_col]].copy()
-            temp.columns = ["Date", "Inflow", "Outflow"]
-
-            # FIX DATE (IMPORTANT)
-            temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
-
-            temp["Date"] = pd.to_datetime({
-                "year": year_value,
-                "month": i + 1,
-                "day": temp["Date"]
-            }, errors="coerce")
-
-            temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
-            temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
-
-            temp = temp.dropna()
-
-            if len(temp) > 5:
-                all_data.append(temp)
-
-        except:
-            continue
-
-    if len(all_data) > 0:
-        return pd.concat(all_data, ignore_index=True)
-
-    return None
-
+    return df
 
 # ----------------------
 # UPLOAD ROUTE
