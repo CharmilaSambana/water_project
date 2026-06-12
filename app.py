@@ -16,58 +16,44 @@ def home():
 # ----------------------
 def process_dataframe(df):
 
-    # Skip header rows
-    df = df.iloc[3:].reset_index(drop=True)
-
+    df = df.fillna("")
     data = []
 
-    year = 2017
+    for row in df.values:
 
-    # 🔥 MANUALLY PICK MONTH BLOCKS (based on your sheet)
-    # Format: [Date, Inflow, Outflow] repeating
+        nums = []
+        for val in row:
+            try:
+                num = float(val)
+                nums.append(num)
+            except:
+                continue
 
-    month_blocks = [
-        (0, 3, 5),    # Jan
-        (6, 9, 11),   # Feb
-        (12, 15, 17), # Mar
-        (18, 21, 23), # Apr
-        (24, 27, 29), # May
-        (30, 33, 35), # Jun
-        (36, 39, 41), # Jul
-        (42, 45, 47), # Aug
-        (48, 51, 53), # Sep
-        (54, 57, 59), # Oct
-        (60, 63, 65), # Nov
-        (66, 69, 71)  # Dec
-    ]
+        # we need at least 3 numbers: date, inflow, outflow
+        if len(nums) >= 3:
 
-    for m, (d_col, i_col, o_col) in enumerate(month_blocks, start=1):
-        try:
-            temp = df.iloc[:, [d_col, i_col, o_col]].copy()
-            temp.columns = ["Date", "Inflow", "Outflow"]
+            date = int(nums[0])
+            inflow = nums[1]
+            outflow = nums[2]
 
-            # Clean
-            temp["Date"] = pd.to_numeric(temp["Date"], errors="coerce")
-            temp["Inflow"] = pd.to_numeric(temp["Inflow"], errors="coerce")
-            temp["Outflow"] = pd.to_numeric(temp["Outflow"], errors="coerce")
-
-            temp = temp.dropna()
-
-            if len(temp) > 5:
-                temp["Date"] = pd.to_datetime({
-                    "year": year,
-                    "month": m,
-                    "day": temp["Date"]
-                })
-                data.append(temp)
-
-        except:
-            continue
+            # filter valid days only
+            if 1 <= date <= 31:
+                data.append([date, inflow, outflow])
 
     if len(data) == 0:
         return None
 
-    return pd.concat(data, ignore_index=True)
+    df_clean = pd.DataFrame(data, columns=["Date", "Inflow", "Outflow"])
+
+    # assign fixed date
+    df_clean["Date"] = pd.to_datetime({
+        "year": 2017,
+        "month": 1,
+        "day": df_clean["Date"]
+    })
+
+    return df_clean
+
 
 # ----------------------
 # UPLOAD
